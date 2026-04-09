@@ -1,0 +1,11 @@
+{
+  "name": "optly-backend",
+  "private": true,
+  "description": "Supabase backend for Optly (migrations + edge functions)",
+  "scripts": {
+    "supabase": "supabase"
+  },
+  "devDependencies": {
+    "supabase": "^2.12.1"
+  }
+}

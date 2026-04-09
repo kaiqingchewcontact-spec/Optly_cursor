@@ -1,0 +1,100 @@
+# iOS CI: build and test when Swift/iOS sources change.
+# Requires an Xcode project or workspace under ios/ (e.g. Optly.xcworkspace). Adjust SCHEME / paths to match the repo.
+
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & test (Simulator)
+    runs-on: macos-14
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
+      SCHEME: Optly
+      DESTINATION: platform=iOS Simulator,name=iPhone 16,OS=latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.0"
+
+      - name: SwiftLint
+        working-directory: ios
+        run: |
+          brew install swiftlint
+          if [ -f .swiftlint.yml ] || [ -f .swiftlint.yaml ]; then
+            swiftlint lint --strict
+          else
+            echo "No .swiftlint.yml — running SwiftLint with default rules (add config to tighten)."
+            swiftlint lint
+          fi
+
+      - name: Resolve Swift packages (if Package.swift present)
+        working-directory: ios
+        run: |
+          if [ -f Package.swift ]; then
+            xcodebuild -resolvePackageDependencies -scheme "$SCHEME" || true
+          fi
+
+      - name: Build for simulator
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          if [ -d Optly.xcworkspace ]; then
+            xcodebuild -workspace Optly.xcworkspace -scheme "$SCHEME" -destination "$DESTINATION" -configuration Debug build
+          elif [ -d Optly.xcodeproj ]; then
+            xcodebuild -project Optly.xcodeproj -scheme "$SCHEME" -destination "$DESTINATION" -configuration Debug build
+          elif [ -f Package.swift ]; then
+            swift build
+          else
+            echo "No Xcode workspace/project or Package.swift found under ios/. Add your Xcode project or adjust paths."
+            exit 1
+          fi
+
+      - name: Run unit tests
+        id: tests
+        working-directory: ios
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          RESULT_BUNDLE="TestResults.xcresult"
+          if [ -d Optly.xcworkspace ]; then
+            xcodebuild -workspace Optly.xcworkspace -scheme "$SCHEME" -destination "$DESTINATION" -resultBundlePath "$RESULT_BUNDLE" test
+          elif [ -d Optly.xcodeproj ]; then
+            xcodebuild -project Optly.xcodeproj -scheme "$SCHEME" -destination "$DESTINATION" -resultBundlePath "$RESULT_BUNDLE" test
+          else
+            echo "Skipping xcodebuild test (no workspace/project)."
+            exit 0
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: |
+            ios/TestResults.xcresult
+          if-no-files-found: ignore
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
