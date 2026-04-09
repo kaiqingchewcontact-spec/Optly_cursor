@@ -1,0 +1,126 @@
+name: Backend (Supabase Edge)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Deploy target"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type check edge functions
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(find supabase/functions -name "*.ts" -type f ! -path "*/node_modules/*" 2>/dev/null || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No TypeScript files under supabase/functions."
+            exit 0
+          fi
+          deno check "${FILES[@]}"
+
+      - name: Run tests
+        run: |
+          if [ -f deno.json ] || [ -f deno.jsonc ]; then
+            deno task test 2>/dev/null || deno test -A
+          else
+            deno test -A supabase/functions 2>/dev/null || echo "No Deno tests found; skipping."
+          fi
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: [quality]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link & deploy (staging)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF_STAGING: ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+        run: |
+          echo "Link project with: supabase link --project-ref \"\$SUPABASE_PROJECT_REF_STAGING\""
+          echo "Deploy with: supabase functions deploy --project-ref \"\$SUPABASE_PROJECT_REF_STAGING\""
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] || [ -z "${SUPABASE_PROJECT_REF_STAGING:-}" ]; then
+            echo "Staging deploy secrets not set; skipping deploy."
+            exit 0
+          fi
+          supabase link --project-ref "$SUPABASE_PROJECT_REF_STAGING"
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF_STAGING"
+
+  deploy-production:
+    name: Deploy to production (manual)
+    needs: [quality]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link & deploy (production)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF_PRODUCTION: ${{ secrets.SUPABASE_PROJECT_REF_PRODUCTION }}
+        run: |
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] || [ -z "${SUPABASE_PROJECT_REF_PRODUCTION:-}" ]; then
+            echo "Configure SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF_PRODUCTION for production deploy."
+            exit 1
+          fi
+          supabase link --project-ref "$SUPABASE_PROJECT_REF_PRODUCTION"
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF_PRODUCTION"

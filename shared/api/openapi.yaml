@@ -1,0 +1,1307 @@
+openapi: 3.1.0
+info:
+  title: Optly API
+  version: 1.0.0
+  license:
+    name: Proprietary
+    url: https://optly.app/legal
+  description: |
+    Shared HTTP API for the Optly mobile apps. Schemas align with the Swift domain models under `ios/Optly/Models/`.
+    All authenticated endpoints return standard rate-limit headers on success and error responses.
+servers:
+  - url: https://api.optly.app/v1
+    description: Production
+  - url: https://staging-api.optly.app/v1
+    description: Staging
+
+tags:
+  - name: Auth
+    description: Registration and token lifecycle
+  - name: DailyBriefing
+    description: AI-generated daily plan
+  - name: Subscriptions
+    description: Recurring spend and scans
+  - name: Habits
+    description: Habit tracking and completions
+  - name: Finance
+    description: Aggregated money snapshot
+  - name: Focus
+    description: Focus session lifecycle
+  - name: Insights
+    description: Actionable insight cards
+  - name: Health
+    description: Health summary ingestion
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/signup:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Sign up
+      operationId: authSignup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '201':
+          description: Account created
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokensResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /auth/signin:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Sign in
+      operationId: authSignin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: Authenticated
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokensResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Refresh access token
+      operationId: authRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: New tokens issued
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokensResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /daily-briefing:
+    get:
+      tags: [DailyBriefing]
+      summary: Get daily briefing
+      operationId: getDailyBriefing
+      parameters:
+        - name: date
+          in: query
+          description: Calendar day for the briefing (defaults to today, server timezone).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Briefing for the requested day
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyBriefing'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /subscriptions/scan:
+    post:
+      tags: [Subscriptions]
+      summary: Trigger subscription scan
+      operationId: scanSubscriptions
+      responses:
+        '202':
+          description: Scan accepted
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionScanAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /subscriptions:
+    get:
+      tags: [Subscriptions]
+      summary: List subscriptions
+      operationId: listSubscriptions
+      responses:
+        '200':
+          description: User subscriptions
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /subscriptions/{id}:
+    patch:
+      tags: [Subscriptions]
+      summary: Update subscription
+      operationId: updateSubscription
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPatch'
+      responses:
+        '200':
+          description: Updated subscription
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /habits:
+    get:
+      tags: [Habits]
+      summary: List habits
+      operationId: listHabits
+      responses:
+        '200':
+          description: Habits for the current user
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Habit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Habits]
+      summary: Create habit
+      operationId: createHabit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HabitCreate'
+      responses:
+        '201':
+          description: Habit created
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Habit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /habits/{id}:
+    patch:
+      tags: [Habits]
+      summary: Update habit
+      operationId: updateHabit
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HabitPatch'
+      responses:
+        '200':
+          description: Updated habit
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Habit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /habits/{id}/complete:
+    post:
+      tags: [Habits]
+      summary: Mark habit complete
+      operationId: completeHabit
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HabitCompleteRequest'
+      responses:
+        '200':
+          description: Habit completion recorded
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Habit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /finance/snapshot:
+    get:
+      tags: [Finance]
+      summary: Finance snapshot
+      operationId: getFinanceSnapshot
+      parameters:
+        - name: monthStart
+          in: query
+          description: First day of the month for the snapshot (ISO 8601 date).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Aggregated finance snapshot
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /focus/start:
+    post:
+      tags: [Focus]
+      summary: Start focus session
+      operationId: startFocusSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FocusStartRequest'
+      responses:
+        '201':
+          description: Session started
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FocusSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /focus/end:
+    post:
+      tags: [Focus]
+      summary: End focus session
+      operationId: endFocusSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FocusEndRequest'
+      responses:
+        '200':
+          description: Session ended
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FocusSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /insights:
+    get:
+      tags: [Insights]
+      summary: Insight cards
+      operationId: listInsights
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Ranked insights
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InsightCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /insights/{id}/acted:
+    post:
+      tags: [Insights]
+      summary: Mark insight acted on
+      operationId: markInsightActed
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightActedRequest'
+      responses:
+        '204':
+          description: Recorded
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /health/sync:
+    post:
+      tags: [Health]
+      summary: Sync health data
+      operationId: syncHealthData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HealthSyncRequest'
+      responses:
+        '200':
+          description: Health payloads accepted
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthSyncResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from `/auth/signin` or `/auth/refresh`.
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum requests allowed in the current window for this client and route class.
+      schema:
+        type: integer
+        example: 120
+    X-RateLimit-Remaining:
+      description: Requests remaining before the window resets.
+      schema:
+        type: integer
+        example: 118
+    X-RateLimit-Reset:
+      description: Unix timestamp (seconds) when the quota fully resets.
+      schema:
+        type: integer
+        format: int64
+        example: 1712678400
+    Retry-After:
+      description: Seconds to wait before retrying after throttling.
+      schema:
+        type: integer
+        example: 42
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource already exists or conflicts with current state
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+        Retry-After:
+          $ref: '#/components/headers/Retry-After'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_request
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    SignUpRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        name:
+          type: string
+          minLength: 1
+
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    AuthTokensResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          const: Bearer
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds.
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - isPremium
+        - subscriptionTier
+        - preferences
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        isPremium:
+          type: boolean
+        subscriptionTier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        trial:
+          $ref: '#/components/schemas/TrialInfo'
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SubscriptionTier:
+      type: string
+      enum: [free, monthly, annual]
+
+    TrialInfo:
+      type: object
+      required: [startedAt, endsAt, isActive]
+      properties:
+        startedAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+
+    UserPreferences:
+      type: object
+      required:
+        - notificationsEnabled
+        - morningBriefingHour
+        - weekStartsOnMonday
+        - currencyCode
+      properties:
+        notificationsEnabled:
+          type: boolean
+        morningBriefingHour:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekStartsOnMonday:
+          type: boolean
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+          example: USD
+
+    DailyBriefing:
+      type: object
+      required:
+        - id
+        - date
+        - greeting
+        - priorityTasks
+        - healthInsights
+        - financeAlerts
+        - energyLevelPrediction
+        - recommendedScheduleBlocks
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date-time
+        greeting:
+          type: string
+        priorityTasks:
+          type: array
+          items:
+            type: string
+        healthInsights:
+          type: array
+          items:
+            type: string
+        financeAlerts:
+          type: array
+          items:
+            type: string
+        energyLevelPrediction:
+          $ref: '#/components/schemas/EnergyLevel'
+        recommendedScheduleBlocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleBlock'
+
+    EnergyLevel:
+      type: string
+      enum: [low, moderate, high, peak]
+
+    ScheduleBlock:
+      type: object
+      required: [id, title, start, end, category]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        category:
+          $ref: '#/components/schemas/BlockCategory'
+
+    BlockCategory:
+      type: string
+      enum: [deepWork, health, finance, habits, rest]
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - name
+        - provider
+        - cost
+        - billingCycle
+        - category
+        - usageScore
+        - aiRecommendation
+        - potentialMonthlySavings
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        provider:
+          type: string
+        cost:
+          type: string
+          description: Decimal amount as string (matches Swift `Decimal` JSON encoding).
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+        billingCycle:
+          $ref: '#/components/schemas/BillingCycle'
+        category:
+          $ref: '#/components/schemas/SubscriptionCategory'
+        lastUsedAt:
+          type: [string, 'null']
+          format: date-time
+        usageScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        aiRecommendation:
+          $ref: '#/components/schemas/AIRecommendation'
+        potentialMonthlySavings:
+          type: string
+          description: Decimal amount as string.
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+
+    BillingCycle:
+      type: string
+      enum: [weekly, monthly, quarterly, annual]
+
+    SubscriptionCategory:
+      type: string
+      enum: [productivity, entertainment, health, finance, education, utilities, other]
+
+    AIRecommendation:
+      type: string
+      enum: [keep, cancel, downgrade]
+
+    SubscriptionPatch:
+      type: object
+      description: Partial update; omitted fields are unchanged.
+      properties:
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/SubscriptionCategory'
+        userNotes:
+          type: string
+        dismissed:
+          type: boolean
+
+    SubscriptionScanAccepted:
+      type: object
+      required: [scanId, status]
+      properties:
+        scanId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running]
+
+    Habit:
+      type: object
+      required:
+        - id
+        - name
+        - category
+        - frequency
+        - streak
+        - completions
+        - aiSuggestedAdjustments
+        - goalTarget
+        - progressPercentage
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/HabitCategory'
+        frequency:
+          $ref: '#/components/schemas/HabitFrequency'
+        streak:
+          type: integer
+          minimum: 0
+        completions:
+          type: array
+          items:
+            type: string
+            format: date-time
+        aiSuggestedAdjustments:
+          type: array
+          items:
+            type: string
+        goalTarget:
+          type: integer
+          minimum: 1
+        progressPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+
+    HabitCategory:
+      type: string
+      enum: [health, productivity, finance, wellness]
+
+    HabitFrequency:
+      type: string
+      enum: [daily, weekdays, weekly, custom]
+
+    HabitCreate:
+      type: object
+      required: [name, category, frequency, goalTarget]
+      properties:
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/HabitCategory'
+        frequency:
+          $ref: '#/components/schemas/HabitFrequency'
+        goalTarget:
+          type: integer
+          minimum: 1
+
+    HabitPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/HabitCategory'
+        frequency:
+          $ref: '#/components/schemas/HabitFrequency'
+        goalTarget:
+          type: integer
+          minimum: 1
+
+    HabitCompleteRequest:
+      type: object
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+          description: Defaults to server time if omitted.
+
+    FinanceSnapshot:
+      type: object
+      required:
+        - id
+        - monthStart
+        - monthlyIncome
+        - expensesByCategory
+        - subscriptionsTotal
+        - savingsRate
+        - cashFlowPrediction
+        - aiSavingsSuggestions
+      properties:
+        id:
+          type: string
+          format: uuid
+        monthStart:
+          type: string
+          format: date-time
+        monthlyIncome:
+          type: string
+          description: Decimal amount as string.
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+        expensesByCategory:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpensePair'
+        subscriptionsTotal:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+        savingsRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        cashFlowPrediction:
+          $ref: '#/components/schemas/CashFlowPrediction'
+        aiSavingsSuggestions:
+          type: array
+          items:
+            type: string
+
+    ExpensePair:
+      type: object
+      required: [category, amount]
+      properties:
+        category:
+          $ref: '#/components/schemas/ExpenseCategory'
+        amount:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+
+    ExpenseCategory:
+      type: string
+      enum: [housing, food, transport, subscriptions, health, entertainment, savings, other]
+
+    CashFlowPrediction:
+      type: object
+      required: [nextMonthNet, confidence, notes]
+      properties:
+        nextMonthNet:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        notes:
+          type: string
+
+    FocusMode:
+      type: string
+      enum: [deepWork, creative, meetingPrep, windDown]
+
+    PlaylistSuggestion:
+      type: object
+      required: [title, genre]
+      properties:
+        title:
+          type: string
+        urlString:
+          type: [string, 'null']
+          format: uri
+        genre:
+          type: string
+
+    BreakSchedule:
+      type: object
+      required:
+        - focusMinutes
+        - shortBreakMinutes
+        - longBreakMinutes
+        - cyclesBeforeLongBreak
+      properties:
+        focusMinutes:
+          type: integer
+          minimum: 1
+        shortBreakMinutes:
+          type: integer
+          minimum: 1
+        longBreakMinutes:
+          type: integer
+          minimum: 1
+        cyclesBeforeLongBreak:
+          type: integer
+          minimum: 1
+
+    FocusSession:
+      type: object
+      required:
+        - id
+        - startTime
+        - mode
+        - blockedApps
+        - suggestedPlaylist
+        - breakSchedule
+        - productivityScore
+      properties:
+        id:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: [string, 'null']
+          format: date-time
+        mode:
+          $ref: '#/components/schemas/FocusMode'
+        blockedApps:
+          type: array
+          items:
+            type: string
+        suggestedPlaylist:
+          $ref: '#/components/schemas/PlaylistSuggestion'
+        breakSchedule:
+          $ref: '#/components/schemas/BreakSchedule'
+        productivityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    FocusStartRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          $ref: '#/components/schemas/FocusMode'
+        blockedApps:
+          type: array
+          items:
+            type: string
+        breakSchedule:
+          $ref: '#/components/schemas/BreakSchedule'
+        suggestedPlaylist:
+          $ref: '#/components/schemas/PlaylistSuggestion'
+
+    FocusEndRequest:
+      type: object
+      required: [sessionId]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        endTime:
+          type: string
+          format: date-time
+        productivityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    InsightCard:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - description
+        - impactScore
+        - actionButtonText
+        - associatedData
+        - priority
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/InsightType'
+        title:
+          type: string
+        description:
+          type: string
+        impactScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        actionButtonText:
+          type: string
+        associatedData:
+          type: object
+          additionalProperties:
+            type: string
+        priority:
+          $ref: '#/components/schemas/InsightPriority'
+
+    InsightType:
+      type: string
+      enum: [savings, health, productivity, habit]
+
+    InsightPriority:
+      type: string
+      enum: [low, medium, high, urgent]
+
+    InsightActedRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          description: Client-defined action key (e.g. deep link route).
+        metadata:
+          type: object
+          additionalProperties: true
+
+    HealthSyncRequest:
+      type: object
+      required: [summaries]
+      properties:
+        deviceId:
+          type: string
+          description: Anonymous device identifier used for deduplication.
+        summaries:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DailyHealthSummary'
+
+    DailyHealthSummary:
+      type: object
+      required:
+        - date
+        - stepCount
+        - sleepHours
+        - activeEnergyKilocalories
+        - workoutMinutes
+      properties:
+        date:
+          type: string
+          format: date
+        stepCount:
+          type: number
+          format: double
+        sleepHours:
+          type: number
+          format: double
+        restingHeartRateBpm:
+          type: [number, 'null']
+          format: double
+        activeEnergyKilocalories:
+          type: number
+          format: double
+        workoutMinutes:
+          type: number
+          format: double
+        heartRateVariabilityMs:
+          type: [number, 'null']
+          format: double
+
+    HealthSyncResponse:
+      type: object
+      required: [accepted, rejected]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
