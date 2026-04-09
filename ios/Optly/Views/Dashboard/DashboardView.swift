@@ -14,48 +14,39 @@ private struct EnergyLevel: Equatable {
 struct DashboardView: View {
     var userName: String = "Alex"
     var energy: EnergyLevel = .init(label: "High", score: 0.82)
-    var briefingSummary: String = "Today favors deep work before noon, a lighter afternoon, and an early wind-down. Finance insights flagged one subscription worth revisiting."
+    /// When set, drives briefing copy, priorities, and the header energy readout.
+    var briefing: DailyBriefing? = nil
 
     @State private var briefingExpanded = false
 
-    private let insights: [InsightCard] = [
-        InsightCard(
-            id: UUID(),
-            type: .savings,
-            title: "Subscription overlap",
-            description: "You have two music services with low overlap usage—consolidating could save about $14/month.",
-            impactScore: 82,
-            actionButtonText: "Review",
-            associatedData: ["estimatedMonthlySavings": "14"],
-            priority: .high
-        ),
-        InsightCard(
-            id: UUID(),
-            type: .health,
-            title: "Hydration nudge",
-            description: "You’re below your usual intake by mid-day—two glasses before 3pm lifts afternoon focus.",
-            impactScore: 45,
-            actionButtonText: "Log water",
-            associatedData: [:],
-            priority: .medium
-        ),
-        InsightCard(
-            id: UUID(),
-            type: .productivity,
-            title: "Meeting buffer",
-            description: "Back-to-back calls at 2pm—add a 10-minute buffer to protect recovery.",
-            impactScore: 58,
-            actionButtonText: "Adjust calendar",
-            associatedData: [:],
-            priority: .urgent
-        )
-    ]
+    private var resolvedEnergy: EnergyLevel {
+        guard let b = briefing else { return energy }
+        switch b.energyLevelPrediction {
+        case .low: return .init(label: "Low", score: 0.34)
+        case .moderate: return .init(label: "Steady", score: 0.55)
+        case .high: return .init(label: "High", score: 0.78)
+        case .peak: return .init(label: "Peak", score: 0.92)
+        }
+    }
 
-    private let priorities: [String] = [
-        "Complete the 90-minute deep work block before 12:30",
-        "Review subscription list and pause one low-usage service",
-        "Walk 15 minutes after lunch for energy stability"
-    ]
+    private var briefingSummaryText: String {
+        if let b = briefing { return b.greeting }
+        return "Today favors deep work before noon, a lighter afternoon, and an early wind-down. Finance insights flagged one subscription worth revisiting."
+    }
+
+    private var displayPriorities: [String] {
+        if let tasks = briefing?.priorityTasks, !tasks.isEmpty { return tasks }
+        return [
+            "Complete the 90-minute deep work block before 12:30",
+            "Review subscription list and pause one low-usage service",
+            "Walk 15 minutes after lunch for energy stability"
+        ]
+    }
+
+    private var insights: [InsightCard] {
+        if !InsightCard.samples.isEmpty { return Array(InsightCard.samples.prefix(3)) }
+        return []
+    }
 
     var body: some View {
         ScrollView {
@@ -126,13 +117,13 @@ struct DashboardView: View {
                 Text("Energy")
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.white.opacity(0.75))
-                Text(energy.label)
+                Text(resolvedEnergy.label)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
             }
-            Gauge(value: energy.score) { }
+            Gauge(value: resolvedEnergy.score) { }
                 .gaugeStyle(.accessoryLinearCapacity)
-                .tint(energy.tint)
+                .tint(resolvedEnergy.tint)
                 .frame(width: 56)
         }
         .padding(.horizontal, 14)
@@ -157,18 +148,32 @@ struct DashboardView: View {
                 }
             }
 
-            Text(briefingSummary)
+            Text(briefingSummaryText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(briefingExpanded ? nil : 2)
 
             if briefingExpanded {
-                HStack(spacing: 8) {
-                    Image(systemName: "wand.and.stars")
-                        .foregroundStyle(.Optly.purple)
-                    Text("Generated from your health, calendar, and finance signals.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 10) {
+                    if let b = briefing {
+                        if let h = b.healthInsights.first {
+                            Label(h, systemImage: "heart.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let f = b.financeAlerts.first {
+                            Label(f, systemImage: "dollarsign.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.stars")
+                            .foregroundStyle(.Optly.purple)
+                        Text("Generated from your health, calendar, and finance signals.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -202,15 +207,20 @@ struct DashboardView: View {
 
     private var insightsSection: some View {
         LazyVStack(spacing: 14) {
-            ForEach(insights) { card in
-                InsightCardView(card: card) { }
+            if insights.isEmpty {
+                ContentUnavailableView("No insights yet", systemImage: "sparkles", description: Text("Check back after your next sync."))
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(insights) { card in
+                    InsightCardView(card: card) { }
+                }
             }
         }
     }
 
     private var prioritiesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(priorities.enumerated()), id: \.offset) { index, item in
+            ForEach(Array(displayPriorities.enumerated()), id: \.offset) { index, item in
                 HStack(alignment: .top, spacing: 12) {
                     Text("\(index + 1)")
                         .font(.caption.weight(.bold))
@@ -234,6 +244,6 @@ struct DashboardView: View {
 
 #Preview("Dashboard") {
     NavigationStack {
-        DashboardView()
+        DashboardView(briefing: .sample)
     }
 }
