@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Optly</string>
+    <string name="tagline">Clarity for your day</string>
+    <string name="primary_cta">Start a focus block</string>
+    <string name="secondary_cta">Review priorities</string>
+    <string name="card_title">Today</string>
+    <string name="card_body">Pick one meaningful task. Small wins compound.</string>
+    <string name="tip_1_title">Single-tasking</string>
+    <string name="tip_1_body">Finish one thing before opening the next tab or app.</string>
+    <string name="tip_2_title">Energy first</string>
+    <string name="tip_2_body">Schedule demanding work when you are freshest.</string>
+    <string name="tip_3_title">Close the loop</string>
+    <string name="tip_3_body">End each block with a one-line note on what changed.</string>
+</resources>

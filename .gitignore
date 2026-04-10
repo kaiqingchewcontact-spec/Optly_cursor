@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IDEA
+.idea/
+*.iml
+
+# Machine-local SDK path (create from template in README)
+local.properties
+captures/
+
+# Keystores (never commit real keys)
+*.jks
+*.keystore
+
+# OS
+.DS_Store
+
+# Kotlin
+.kotlin/
